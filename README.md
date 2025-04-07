@@ -135,11 +135,6 @@ VOICE_OPTIONS = {
 }
 ```
 
-Available voices include:
-- Polly.Joanna, Polly.Matthew (US English)
-- Polly.Amy, Polly.Brian (British English)
-- Polly.Celine, Polly.Mathieu (French)
-- Many more at [Twilio's Amazon Polly documentation](https://www.twilio.com/docs/voice/twiml/say/amazon-polly)
 
 ### Response Speed Adjustment
 
