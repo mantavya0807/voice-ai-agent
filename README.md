@@ -110,28 +110,6 @@ A high-performance voice AI agent built with OpenAI Agent SDK, Twilio for teleph
 
 4. Test by calling your Twilio phone number
 
-### Cloud Deployment
-
-For production deployment on Google Cloud Run:
-
-1. Build and push the Docker image:
-   ```bash
-   docker build -t gcr.io/your-project-id/voice-ai-agent .
-   docker push gcr.io/your-project-id/voice-ai-agent
-   ```
-
-2. Deploy to Cloud Run:
-   ```bash
-   gcloud run deploy voice-ai-agent \
-     --image gcr.io/your-project-id/voice-ai-agent \
-     --platform managed \
-     --region us-central1 \
-     --memory 512Mi \
-     --allow-unauthenticated \
-     --set-env-vars "OPENAI_API_KEY=your_key,TWILIO_ACCOUNT_SID=your_sid,TWILIO_AUTH_TOKEN=your_token,TWILIO_PHONE_NUMBER=your_number,GCS_BUCKET_NAME=your_bucket"
-   ```
-
-3. Update your Twilio webhook URLs to point to your Cloud Run service URL
 
 ## Usage Guide
 
