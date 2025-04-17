@@ -276,12 +276,13 @@ class GCPStorage:
             logger.error(traceback.format_exc())
             return False
             
-    async def save_audio(self, audio_url: str) -> Optional[str]:
+    async def save_audio(self, audio_url: str, metadata: Dict[str, Any]) -> Optional[str]:
         """
         Save the call audio to GCS.
         
         Args:
             audio_url: URL to the audio file
+            metadata: Additional metadata about the call
         
         Returns:
             Optional[str]: The blob name if successful, None otherwise
@@ -304,10 +305,23 @@ class GCPStorage:
                 headers = {}
                 # Add authentication if needed for Twilio recordings
                 if "twilio" in audio_url:
-                    from app.config import TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN
-                    auth_token = base64.b64encode(f"{TWILIO_ACCOUNT_SID}:{TWILIO_AUTH_TOKEN}".encode()).decode()
-                    headers["Authorization"] = f"Basic {auth_token}"
-                    logger.info(f"Added Twilio authentication headers")
+                    # Extract service type from metadata or default to "restaurant"
+                    service_type = metadata.get("service_type", "restaurant")
+                    
+                    # Import the appropriate config based on service type
+                    if service_type == "restaurant":
+                        from app.config import RESTAURANT_TWILIO_ACCOUNT_SID as account_sid
+                        from app.config import RESTAURANT_TWILIO_AUTH_TOKEN as auth_token
+                    elif service_type == "hairdresser":
+                        from app.config import HAIRDRESSER_TWILIO_ACCOUNT_SID as account_sid
+                        from app.config import HAIRDRESSER_TWILIO_AUTH_TOKEN as auth_token
+                    else:
+                        # Fallback to restaurant
+                        from app.config import RESTAURANT_TWILIO_ACCOUNT_SID as account_sid
+                        from app.config import RESTAURANT_TWILIO_AUTH_TOKEN as auth_token
+                    
+                    auth_string = base64.b64encode(f"{account_sid}:{auth_token}".encode()).decode()
+                    headers["Authorization"] = f"Basic {auth_string}"
                 
                 logger.info(f"Downloading audio from: {audio_url}")
                 response = requests.get(audio_url, headers=headers)
