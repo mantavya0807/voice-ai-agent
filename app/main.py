@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request, Depends, Header, status
+from fastapi import FastAPI, HTTPException, Request, Depends, Header, status, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
@@ -15,9 +15,10 @@ from datetime import datetime
 from contextlib import asynccontextmanager
 
 from app.voice.twilio_handler import router as twilio_router, active_calls, background_save_call_data
+from app.voice.mcp_handler import router as mcp_router, active_streams  # Import the new MCP router
 from app.config import (
     API_HOST, API_PORT, LOG_LEVEL, API_KEY_REQUIRED, API_KEY,
-    ENABLE_CALL_ANALYTICS, DEBUG,
+    ENABLE_CALL_ANALYTICS, DEBUG, USE_MCP,  # Add USE_MCP flag
     GOOGLE_APPLICATION_CREDENTIALS, GCS_BUCKET_NAME
 )
 from app.utils import setup_logging
@@ -33,6 +34,12 @@ async def lifespan(app: FastAPI):
     # Startup logic
     logger.info("Enhanced Voice AI Agent is starting up")
     app_metrics["start_time"] = time.time()
+    
+    # Log which mode we're using
+    if USE_MCP:
+        logger.info("Using Twilio Media Control Platform (MCP) for voice processing")
+    else:
+        logger.info("Using traditional TwiML for voice processing")
 
     # Ensure required directories exist in GCS if call analytics are enabled
     if ENABLE_CALL_ANALYTICS:
@@ -92,6 +99,15 @@ async def lifespan(app: FastAPI):
     # Shutdown logic
     logger.info("Enhanced Voice AI Agent is shutting down")
     await save_all_active_calls()
+    
+    # Clean up WebSocket connections
+    for call_id, ws in list(active_streams.items()):
+        try:
+            await ws.close(1000)
+            logger.info(f"Closed WebSocket for call {call_id}")
+        except:
+            pass
+    
     logger.info("Shutdown complete")
 
 # Initialize FastAPI app with lifespan
@@ -125,14 +141,25 @@ async def verify_api_key(api_key: str = Depends(api_key_header)):
 
 # Include routers with conditional API key verification
 if API_KEY_REQUIRED:
+    # Include the traditional TwiML router
     app.include_router(
         twilio_router,
         prefix="/twilio",
         tags=["twilio"],
         dependencies=[Depends(verify_api_key)]
     )
+    
+    # Include the new MCP router
+    app.include_router(
+        mcp_router,
+        prefix="/twilio",
+        tags=["twilio-mcp"],
+        dependencies=[Depends(verify_api_key)]
+    )
 else:
+    # Include routers without API key verification
     app.include_router(twilio_router, prefix="/twilio", tags=["twilio"])
+    app.include_router(mcp_router, prefix="/twilio", tags=["twilio-mcp"])
 
 # Application metrics and monitoring
 app_metrics = {
@@ -140,7 +167,8 @@ app_metrics = {
     "requests_total": 0,
     "errors_total": 0,
     "calls_total": 0,
-    "processing_times": []
+    "processing_times": [],
+    "active_websockets": 0  # New metric for WebSocket connections
 }
 
 @app.middleware("http")
@@ -156,7 +184,7 @@ async def metrics_middleware(request: Request, call_next):
         if len(app_metrics["processing_times"]) > 1000:
             app_metrics["processing_times"] = app_metrics["processing_times"][-1000:]
 
-        if "/twilio/voice" in request.url.path:
+        if "/twilio/voice" in request.url.path or "/twilio/mcp/incoming" in request.url.path:
             app_metrics["calls_total"] += 1
 
         return response
@@ -166,12 +194,32 @@ async def metrics_middleware(request: Request, call_next):
         logger.error(traceback.format_exc())
         raise
 
+@app.on_event("startup")
+async def startup_event():
+    logger.info(f"Starting application with MCP {'enabled' if USE_MCP else 'disabled'}")
+    # Register WebSocket event handlers
+    app.add_event_handler("websocket_connect", websocket_connect)
+    app.add_event_handler("websocket_disconnect", websocket_disconnect)
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    logger.info("Application shutdown")
+
+async def websocket_connect(websocket: WebSocket):
+    app_metrics["active_websockets"] += 1
+    logger.debug(f"WebSocket connected, active count: {app_metrics['active_websockets']}")
+
+async def websocket_disconnect(websocket: WebSocket):
+    app_metrics["active_websockets"] = max(0, app_metrics["active_websockets"] - 1)
+    logger.debug(f"WebSocket disconnected, active count: {app_metrics['active_websockets']}")
+
 @app.get("/")
 async def root():
     return {
         "message": "Enhanced Voice AI Agent is running! Call your configured Twilio number to interact.",
         "version": "2.0.0",
-        "documentation": "/docs"
+        "documentation": "/docs",
+        "mode": "mcp" if USE_MCP else "twiml"
     }
 
 @app.get("/health")
@@ -194,7 +242,9 @@ async def get_metrics():
         "error_rate": app_metrics["errors_total"] / app_metrics["requests_total"] if app_metrics["requests_total"] > 0 else 0,
         "calls_total": app_metrics["calls_total"],
         "average_processing_time_ms": avg_processing_time * 1000,
-        "active_calls": len(active_calls)
+        "active_calls": len(active_calls),
+        "active_websockets": app_metrics["active_websockets"],
+        "active_streams": len(active_streams)
     }
 
 async def save_all_active_calls():

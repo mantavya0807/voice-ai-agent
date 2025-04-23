@@ -1,5 +1,5 @@
 """
-Updated configuration for OpenAI Agents SDK
+Updated configuration for Twilio Media Control Platform (MCP)
 """
 
 import os
@@ -29,15 +29,39 @@ AGENTS_SDK_TTS_VOICE = os.getenv("AGENTS_SDK_TTS_VOICE", "alloy")
 RESTAURANT_TWILIO_ACCOUNT_SID = os.getenv("RESTAURANT_TWILIO_ACCOUNT_SID")
 RESTAURANT_TWILIO_AUTH_TOKEN = os.getenv("RESTAURANT_TWILIO_AUTH_TOKEN")
 RESTAURANT_TWILIO_PHONE_NUMBER = os.getenv("RESTAURANT_TWILIO_PHONE_NUMBER")
-RESTAURANT_DEFAULT_VOICE = os.getenv("RESTAURANT_DEFAULT_VOICE", "Polly.Joanna")
+RESTAURANT_DEFAULT_VOICE = os.getenv("RESTAURANT_DEFAULT_VOICE", "alloy")  # Using OpenAI voice names
 RESTAURANT_DEFAULT_LANGUAGE = os.getenv("RESTAURANT_DEFAULT_LANGUAGE", "en-US")
 
 # Hairdresser Service Twilio Configuration
 HAIRDRESSER_TWILIO_ACCOUNT_SID = os.getenv("HAIRDRESSER_TWILIO_ACCOUNT_SID")
 HAIRDRESSER_TWILIO_AUTH_TOKEN = os.getenv("HAIRDRESSER_TWILIO_AUTH_TOKEN")
 HAIRDRESSER_TWILIO_PHONE_NUMBER = os.getenv("HAIRDRESSER_TWILIO_PHONE_NUMBER")
-HAIRDRESSER_DEFAULT_VOICE = os.getenv("HAIRDRESSER_DEFAULT_VOICE", "Polly.Amy")
+HAIRDRESSER_DEFAULT_VOICE = os.getenv("HAIRDRESSER_DEFAULT_VOICE", "nova")  # Using OpenAI voice names
 HAIRDRESSER_DEFAULT_LANGUAGE = os.getenv("HAIRDRESSER_DEFAULT_LANGUAGE", "en-GB")
+
+# MCP Configuration (New)
+USE_MCP = os.getenv("USE_MCP", "True").lower() in ("true", "1", "t")
+MCP_MEDIA_STREAM_URL = os.getenv("MCP_MEDIA_STREAM_URL")  # Base URL for media streams
+
+# Audio Processing Configuration (New)
+AUDIO_SAMPLE_RATE = int(os.getenv("AUDIO_SAMPLE_RATE", "8000"))
+AUDIO_CHANNELS = int(os.getenv("AUDIO_CHANNELS", "1"))
+AUDIO_FORMAT = os.getenv("AUDIO_FORMAT", "mulaw")  # Options: mulaw, pcm
+AUDIO_CHUNK_DURATION_MS = int(os.getenv("AUDIO_CHUNK_DURATION_MS", "200"))  # Duration of audio chunks in ms
+VAD_ENABLED = os.getenv("VAD_ENABLED", "True").lower() in ("true", "1", "t")  # Voice Activity Detection
+VAD_THRESHOLD = float(os.getenv("VAD_THRESHOLD", "0.3"))  # VAD threshold (0.0 to 1.0)
+VAD_SILENCE_DURATION_MS = int(os.getenv("VAD_SILENCE_DURATION_MS", "1000"))  # Silence duration to consider end of speech
+
+# Speech-to-Text Configuration (New)
+STT_PROVIDER = os.getenv("STT_PROVIDER", "openai")  # Options: openai, google, azure
+STT_MODEL = os.getenv("STT_MODEL", "whisper-1")  # OpenAI model
+STT_LANGUAGE = os.getenv("STT_LANGUAGE", "en")  # Language code
+STT_STREAMING = os.getenv("STT_STREAMING", "True").lower() in ("true", "1", "t")  # Use streaming API if available
+
+# Text-to-Speech Configuration (New)
+TTS_PROVIDER = os.getenv("TTS_PROVIDER", "openai")  # Options: openai, google, azure
+TTS_MODEL = os.getenv("TTS_MODEL", "tts-1")  # OpenAI model
+TTS_STREAMING = os.getenv("TTS_STREAMING", "True").lower() in ("true", "1", "t")  # Use streaming API if available
 
 # Lookup dictionaries for service identification
 SERVICE_PHONE_NUMBERS = {
@@ -45,7 +69,7 @@ SERVICE_PHONE_NUMBERS = {
     HAIRDRESSER_TWILIO_PHONE_NUMBER: "hairdresser"
 }
 
-# Service-specific configuration
+# Service-specific configuration (updated with MCP settings)
 SERVICE_CONFIG = {
     "restaurant": {
         "name": "Bella Cucina Restaurant",
@@ -75,7 +99,10 @@ SERVICE_CONFIG = {
             For parties larger than 8, we require at least 48 hours notice.
             
             Keep your responses concise and suitable for a voice conversation.
-        """
+        """,
+        "tts_voice": RESTAURANT_DEFAULT_VOICE,  # Voice for TTS
+        "tts_language": RESTAURANT_DEFAULT_LANGUAGE,
+        "stt_language": "en-US",  # Language for STT
     },
     "hairdresser": {
         "name": "Style Studio Salon",
@@ -108,7 +135,10 @@ SERVICE_CONFIG = {
             - Blow-dry and styling: 30-45 minutes
             
             Keep your responses concise and suitable for a voice conversation.
-        """
+        """,
+        "tts_voice": HAIRDRESSER_DEFAULT_VOICE,  # Voice for TTS
+        "tts_language": HAIRDRESSER_DEFAULT_LANGUAGE,
+        "stt_language": "en-GB",  # Language for STT
     }
 }
 
